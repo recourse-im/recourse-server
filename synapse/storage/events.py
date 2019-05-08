@@ -28,7 +28,7 @@ from prometheus_client import Counter
 from twisted.internet import defer
 
 import synapse.metrics
-from synapse.api.constants import EventTypes
+from synapse.api.constants import EventTypes, RelationTypes
 from synapse.api.errors import SynapseError
 from synapse.events import EventBase  # noqa: F401
 from synapse.events.snapshot import EventContext  # noqa: F401
@@ -1350,6 +1350,33 @@ class EventsStore(
             elif event.type == EventTypes.GuestAccess:
                 # Insert into the event_search table.
                 self._store_guest_access_txn(txn, event)
+
+            relation = event.content.get("m.relates_to")
+            if relation:
+                rel_type = None
+                if RelationTypes.ANNOTATION in relation:
+                    rel_type = RelationTypes.ANNOTATION
+                elif RelationTypes.REFERENCES in relation:
+                    rel_type = RelationTypes.REFERENCES
+                elif RelationTypes.REPLACES in relation:
+                    rel_type = RelationTypes.REPLACES
+
+                if rel_type:
+                    parent_id = relation[rel_type].get("event_id")
+                    aggregation_key = relation[rel_type].get("aggregation_key")
+
+                    if parent_id:
+                        # FIXME We need to do this when things are no longer an outlier.
+                        self._simple_insert_txn(
+                            txn,
+                            table="event_relations",
+                            values={
+                                "event_id": event.event_id,
+                                "relates_to_id": parent_id,
+                                "relation_type": rel_type,
+                                "aggregation_key": aggregation_key,
+                            }
+                        )
 
         # Insert into the room_memberships table.
         self._store_room_members_txn(

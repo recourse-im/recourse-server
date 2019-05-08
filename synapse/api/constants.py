@@ -113,3 +113,9 @@ class UserTypes(object):
     """
     SUPPORT = "support"
     ALL_USER_TYPES = (SUPPORT,)
+
+
+class RelationTypes(object):
+    ANNOTATION = "m.annotation"
+    REPLACES = "m.replaces"
+    REFERENCES = "m.references"
