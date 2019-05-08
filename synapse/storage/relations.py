@@ -17,6 +17,7 @@ import logging
 
 import attr
 
+from synapse.api.constants import RelationTypes
 from synapse.storage._base import SQLBaseStore
 
 logger = logging.getLogger(__name__)
@@ -74,4 +75,37 @@ class RelationsStore(SQLBaseStore):
 
         return self.runInteraction(
             "get_recent_references_for_event", _get_recent_references_for_event_txn
+        )
+
+    def get_aggregation_groups_for_event(self, event_id, event_type=None, limit=5):
+        where_clause = ["relates_to_id = ?", "relation_type = ?"]
+        where_args = [event_id, RelationTypes.ANNOTATION]
+
+        if event_type:
+            where_clause.append("type = ?")
+            where_args.append(event_type)
+
+        sql = """
+            SELECT type, aggregation_key, COUNT(*)
+            FROM event_relations
+            INNER JOIN events USING (event_id)
+            WHERE %s
+            GROUP BY relation_type, type, aggregation_key
+            ORDER BY COUNT(*) DESC
+            LIMIT ?
+        """ % (
+            " AND ".join(where_clause),
+        )
+
+        def _get_aggregation_groups_for_event_txn(txn):
+            txn.execute(sql, where_args + [limit + 1])
+
+            events = [{"type": row[0], "key": row[1], "count": row[2]} for row in txn]
+
+            return PaginationChunk(
+                chunk=list(events[:limit]), limited=len(events) > limit
+            )
+
+        return self.runInteraction(
+            "get_aggregation_groups_for_event", _get_aggregation_groups_for_event_txn
         )

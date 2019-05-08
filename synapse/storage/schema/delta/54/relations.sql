@@ -24,4 +24,4 @@ CREATE TABLE IF NOT EXISTS event_relations (
 );
 
 CREATE UNIQUE INDEX event_relations_id ON event_relations(event_id);
-CREATE UNIQUE INDEX event_relations_relates ON event_relations(relates_to_id, relation_type, aggregation_key);
+CREATE INDEX event_relations_relates ON event_relations(relates_to_id, relation_type, aggregation_key);

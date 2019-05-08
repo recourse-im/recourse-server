@@ -52,23 +52,70 @@ class RelationsTestCase(unittest.HomeserverTestCase):
         request, channel = self.make_request(
             "GET",
             "/_matrix/client/unstable/rooms/%s/relations/%s?limit=1"
-            % (self.room, self.parent_id,),
+            % (self.room, self.parent_id),
         )
         self.render(request)
         self.assertEquals(200, channel.code, channel.json_body)
 
-        self.assertEquals(channel.json_body, {
-            "limited": True,
-            "chunk": [annotation_id],
-            "prev_batch": None,
-            "next_batch": None,
-        })
+        self.assertEquals(
+            channel.json_body,
+            {
+                "limited": True,
+                "chunk": [annotation_id],
+                "prev_batch": None,
+                "next_batch": None,
+            },
+        )
 
-    def _send_relation(self, relation_type, event_type):
+    def test_aggregation(self):
+        channel = self._send_relation(RelationTypes.ANNOTATION, "m.reaction", "a")
+        self.assertEquals(200, channel.code, channel.json_body)
+
+        channel = self._send_relation(RelationTypes.ANNOTATION, "m.reaction", "a")
+        self.assertEquals(200, channel.code, channel.json_body)
+
+        channel = self._send_relation(RelationTypes.ANNOTATION, "m.reaction", "b")
+        self.assertEquals(200, channel.code, channel.json_body)
+
+        request, channel = self.make_request(
+            "GET",
+            "/_matrix/client/unstable/rooms/%s/aggregations/%s"
+            % (self.room, self.parent_id),
+        )
+        self.render(request)
+        self.assertEquals(200, channel.code, channel.json_body)
+
+        self.assertEquals(
+            channel.json_body,
+            {
+                "limited": False,
+                "chunk": [
+                    {"type": "m.reaction", "key": "a", "count": 2},
+                    {"type": "m.reaction", "key": "b", "count": 1},
+                ],
+                "prev_batch": None,
+                "next_batch": None,
+            },
+        )
+
+    def test_aggregation_must_be_annotation(self):
+        request, channel = self.make_request(
+            "GET",
+            "/_matrix/client/unstable/rooms/%s/aggregations/m.replaces/%s?limit=1"
+            % (self.room, self.parent_id),
+        )
+        self.render(request)
+        self.assertEquals(400, channel.code, channel.json_body)
+
+    def _send_relation(self, relation_type, event_type, key=None):
+        query = ""
+        if key:
+            query = "?key=" + key
+
         request, channel = self.make_request(
             "POST",
-            "/_matrix/client/unstable/rooms/%s/send_relation/%s/%s/%s"
-            % (self.room, self.parent_id, relation_type, event_type),
+            "/_matrix/client/unstable/rooms/%s/send_relation/%s/%s/%s%s"
+            % (self.room, self.parent_id, relation_type, event_type, query),
             b"{}",
         )
         self.render(request)

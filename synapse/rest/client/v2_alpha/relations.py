@@ -17,12 +17,13 @@ import logging
 
 from twisted.internet import defer
 
-from synapse.api.constants import EventTypes
+from synapse.api.constants import EventTypes, RelationTypes
 from synapse.api.errors import SynapseError
 from synapse.http.servlet import (
     RestServlet,
     parse_integer,
     parse_json_object_from_request,
+    parse_string,
 )
 
 from ._base import client_v2_patterns
@@ -65,7 +66,11 @@ class RelationSendServlet(RestServlet):
 
         content = parse_json_object_from_request(request)
 
-        content["m.relates_to"] = {relation_type: {"event_id": parent_id}}
+        aggregation_key = parse_string(request, "key")
+
+        content["m.relates_to"] = {
+            relation_type: {"event_id": parent_id, "key": aggregation_key}
+        }
 
         event_dict = {
             "type": event_type,
@@ -115,6 +120,50 @@ class RelationPaginationServlet(RestServlet):
         defer.returnValue((200, res.to_dict()))
 
 
+class RelationAggregationPaginationServlet(RestServlet):
+    PATTERNS = client_v2_patterns(
+        "/rooms/(?P<room_id>[^/]*)/aggregations/(?P<parent_id>[^/]*)"
+        "(/(?P<relation_type>[^/]*)(/(?P<event_type>[^/]*))?)?$",
+        releases=(),
+    )
+
+    def __init__(self, hs):
+        super(RelationAggregationPaginationServlet, self).__init__()
+        self.auth = hs.get_auth()
+        self.store = hs.get_datastore()
+
+    @defer.inlineCallbacks
+    def on_GET(
+        self,
+        request,
+        room_id,
+        parent_id,
+        relation_type=None,
+        event_type=None,
+    ):
+        requester = yield self.auth.get_user_by_req(request, allow_guest=True)
+
+        yield self.auth.check_in_room_or_world_readable(
+            room_id, requester.user.to_string()
+        )
+
+        if relation_type not in (RelationTypes.ANNOTATION, None):
+            raise SynapseError(400, "Relation type must be 'annotation'")
+
+        limit = parse_integer(request, "limit", default=5)
+
+        # FIXME: Do filtering?
+
+        res = yield self.store.get_aggregation_groups_for_event(
+            event_id=parent_id,
+            event_type=event_type,
+            limit=limit,
+        )
+
+        defer.returnValue((200, res.to_dict()))
+
+
 def register_servlets(hs, http_server):
     RelationSendServlet(hs).register(http_server)
     RelationPaginationServlet(hs).register(http_server)
+    RelationAggregationPaginationServlet(hs).register(http_server)

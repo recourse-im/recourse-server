@@ -1363,7 +1363,7 @@ class EventsStore(
 
                 if rel_type:
                     parent_id = relation[rel_type].get("event_id")
-                    aggregation_key = relation[rel_type].get("aggregation_key")
+                    aggregation_key = relation[rel_type].get("key")
 
                     if parent_id:
                         # FIXME We need to do this when things are no longer an outlier.
