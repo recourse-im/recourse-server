@@ -41,6 +41,29 @@ class RelationsTestCase(unittest.HomeserverTestCase):
         channel = self._send_relation(RelationTypes.ANNOTATION, EventTypes.Member)
         self.assertEquals(400, channel.code, channel.json_body)
 
+    def test_paginate(self):
+        channel = self._send_relation(RelationTypes.ANNOTATION, "m.reaction")
+        self.assertEquals(200, channel.code, channel.json_body)
+
+        channel = self._send_relation(RelationTypes.ANNOTATION, "m.reaction")
+        self.assertEquals(200, channel.code, channel.json_body)
+        annotation_id = channel.json_body["event_id"]
+
+        request, channel = self.make_request(
+            "GET",
+            "/_matrix/client/unstable/rooms/%s/relations/%s?limit=1"
+            % (self.room, self.parent_id,),
+        )
+        self.render(request)
+        self.assertEquals(200, channel.code, channel.json_body)
+
+        self.assertEquals(channel.json_body, {
+            "limited": True,
+            "chunk": [annotation_id],
+            "prev_batch": None,
+            "next_batch": None,
+        })
+
     def _send_relation(self, relation_type, event_type):
         request, channel = self.make_request(
             "POST",
