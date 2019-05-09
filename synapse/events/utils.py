@@ -349,5 +349,5 @@ class EventClientSerializer(object):
     def serialize_events(self, events, time_now, **kwargs):
         return yieldable_gather_results(
             self.serialize_event, events,
-            time_now=time_now, **kwargs,
+            time_now=time_now, **kwargs
         )
