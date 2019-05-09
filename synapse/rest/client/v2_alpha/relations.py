@@ -110,7 +110,7 @@ class RelationPaginationServlet(RestServlet):
 
         # FIXME: Do filtering?
 
-        res = yield self.store.get_recent_relations_for_event(
+        res = yield self.store.get_relations_for_event(
             event_id=parent_id,
             relation_type=relation_type,
             event_type=event_type,

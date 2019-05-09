@@ -61,7 +61,7 @@ class RelationsTestCase(unittest.HomeserverTestCase):
             channel.json_body,
             {
                 "limited": True,
-                "chunk": [annotation_id],
+                "chunk": [{"event_id": annotation_id}],
                 "prev_batch": None,
                 "next_batch": None,
             },
@@ -106,6 +106,53 @@ class RelationsTestCase(unittest.HomeserverTestCase):
         )
         self.render(request)
         self.assertEquals(400, channel.code, channel.json_body)
+
+    def test_aggregation_get_event(self):
+        channel = self._send_relation(RelationTypes.ANNOTATION, "m.reaction", "a")
+        self.assertEquals(200, channel.code, channel.json_body)
+
+        channel = self._send_relation(RelationTypes.ANNOTATION, "m.reaction", "a")
+        self.assertEquals(200, channel.code, channel.json_body)
+
+        channel = self._send_relation(RelationTypes.ANNOTATION, "m.reaction", "b")
+        self.assertEquals(200, channel.code, channel.json_body)
+
+        channel = self._send_relation(RelationTypes.REFERENCES, "m.room.test")
+        self.assertEquals(200, channel.code, channel.json_body)
+        reply_1 = channel.json_body["event_id"]
+
+        channel = self._send_relation(RelationTypes.REFERENCES, "m.room.test")
+        self.assertEquals(200, channel.code, channel.json_body)
+        reply_2 = channel.json_body["event_id"]
+
+        request, channel = self.make_request(
+            "GET", "/rooms/%s/event/%s" % (self.room, self.parent_id)
+        )
+        self.render(request)
+        self.assertEquals(200, channel.code, channel.json_body)
+
+        self.maxDiff = None
+
+        self.assertEquals(
+            channel.json_body["unsigned"].get("m.relations"),
+            {
+                RelationTypes.ANNOTATION: {
+                    "chunk": [
+                        {"type": "m.reaction", "key": "a", "count": 2},
+                        {"type": "m.reaction", "key": "b", "count": 1},
+                    ],
+                    "limited": False,
+                    "next_batch": None,
+                    "prev_batch": None,
+                },
+                RelationTypes.REFERENCES: {
+                    "chunk": [{"event_id": reply_1}, {"event_id": reply_2}],
+                    "limited": False,
+                    "next_batch": None,
+                    "prev_batch": None,
+                },
+            },
+        )
 
     def _send_relation(self, relation_type, event_type, key=None):
         query = ""

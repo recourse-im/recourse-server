@@ -21,7 +21,7 @@ from frozendict import frozendict
 
 from twisted.internet import defer
 
-from synapse.api.constants import EventTypes
+from synapse.api.constants import EventTypes, RelationTypes
 from synapse.util.async_helpers import yieldable_gather_results
 
 from . import EventBase
@@ -318,11 +318,33 @@ def serialize_event(e, time_now_ms, as_client_event=True,
 
 class EventClientSerializer(object):
     def __init__(self, hs):
-        pass
+        self.store = hs.get_datastore()
 
+    @defer.inlineCallbacks
     def serialize_event(self, event, time_now, **kwargs):
+        # FIXME(erikj): To handle the case of presence events and the like
+        if not isinstance(event, EventBase):
+            defer.returnValue(event)
+
+        # FIXME: Do we need to check auth of the relations?
+
+        annotations = yield self.store.get_aggregation_groups_for_event(
+            event.event_id,
+        )
+        references = yield self.store.get_relations_for_event(
+            event.event_id, RelationTypes.REFERENCES, direction="f",
+        )
         event = serialize_event(event, time_now, **kwargs)
-        return defer.succeed(event)
+
+        if annotations.chunk:
+            r = event["unsigned"].setdefault("m.relations", {})
+            r[RelationTypes.ANNOTATION] = annotations.to_dict()
+
+        if references.chunk:
+            r = event["unsigned"].setdefault("m.relations", {})
+            r[RelationTypes.REFERENCES] = references.to_dict()
+
+        defer.returnValue(event)
 
     def serialize_events(self, events, time_now, **kwargs):
         return yieldable_gather_results(

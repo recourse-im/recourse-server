@@ -35,8 +35,8 @@ class PaginationChunk(object):
 
 
 class RelationsStore(SQLBaseStore):
-    def get_recent_relations_for_event(
-        self, event_id, relation_type=None, event_type=None, limit=5
+    def get_relations_for_event(
+        self, event_id, relation_type=None, event_type=None, limit=5, direction="b",
     ):
         """
         """
@@ -54,20 +54,25 @@ class RelationsStore(SQLBaseStore):
             where_clause.append("type = ?")
             where_args.append(event_type)
 
+        order = "ASC"
+        if direction == "b":
+            order = "DESC"
+
         sql = """
             SELECT event_id FROM event_relations
             INNER JOIN events USING (event_id)
             WHERE %s
-            ORDER BY topological_ordering DESC, stream_ordering DESC
+            ORDER BY topological_ordering %s, stream_ordering %s
             LIMIT ?
         """ % (
             " AND ".join(where_clause),
+            order, order,
         )
 
         def _get_recent_references_for_event_txn(txn):
             txn.execute(sql, where_args + [limit + 1])
 
-            events = [row[0] for row in txn]
+            events = [{"event_id": row[0]} for row in txn]
 
             return PaginationChunk(
                 chunk=list(events[:limit]), limited=len(events) > limit
