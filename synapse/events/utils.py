@@ -19,7 +19,10 @@ from six import string_types
 
 from frozendict import frozendict
 
+from twisted.internet import defer
+
 from synapse.api.constants import EventTypes
+from synapse.util.async_helpers import yieldable_gather_results
 
 from . import EventBase
 
@@ -311,3 +314,18 @@ def serialize_event(e, time_now_ms, as_client_event=True,
         d = only_fields(d, only_event_fields)
 
     return d
+
+
+class EventClientSerializer(object):
+    def __init__(self, hs):
+        pass
+
+    def serialize_event(self, event, time_now, **kwargs):
+        event = serialize_event(event, time_now, **kwargs)
+        return defer.succeed(event)
+
+    def serialize_events(self, events, time_now, **kwargs):
+        return yieldable_gather_results(
+            self.serialize_event, events,
+            time_now=time_now, **kwargs,
+        )

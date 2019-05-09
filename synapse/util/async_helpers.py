@@ -127,7 +127,7 @@ class ObservableDeferred(object):
         )
 
 
-def concurrently_execute(func, args, limit):
+def concurrently_execute(func, args, limit, **kwargs):
     """Executes the function with each argument conncurrently while limiting
     the number of concurrent executions.
 
@@ -136,6 +136,7 @@ def concurrently_execute(func, args, limit):
         args (list): List of arguments to pass to func, each invocation of func
             gets a signle argument.
         limit (int): Maximum number of conccurent executions.
+        **kwargs: key word arguments padded to func each iteration
 
     Returns:
         deferred: Resolved when all function invocations have finished.
@@ -146,13 +147,20 @@ def concurrently_execute(func, args, limit):
     def _concurrently_execute_inner():
         try:
             while True:
-                yield func(next(it))
+                yield func(next(it), **kwargs)
         except StopIteration:
             pass
 
     return logcontext.make_deferred_yieldable(defer.gatherResults([
         run_in_background(_concurrently_execute_inner)
         for _ in range(limit)
+    ], consumeErrors=True)).addErrback(unwrapFirstError)
+
+
+def yieldable_gather_results(func, iter, *args, **kwargs):
+    return logcontext.make_deferred_yieldable(defer.gatherResults([
+        run_in_background(func, item, *args, **kwargs)
+        for item in iter
     ], consumeErrors=True)).addErrback(unwrapFirstError)
 
 
