@@ -34,8 +34,32 @@ class RelationsTestCase(unittest.HomeserverTestCase):
         self.parent_id = res["event_id"]
 
     def test_send_relation(self):
-        channel = self._send_relation(RelationTypes.ANNOTATION, "m.reaction")
+        channel = self._send_relation(RelationTypes.ANNOTATION, "m.reaction", key="a")
         self.assertEquals(200, channel.code, channel.json_body)
+
+        event_id = channel.json_body["event_id"]
+
+        request, channel = self.make_request(
+            "GET", "/rooms/%s/event/%s" % (self.room, event_id)
+        )
+        self.render(request)
+        self.assertEquals(200, channel.code, channel.json_body)
+
+        self.assert_dict(
+            {
+                "type": "m.reaction",
+                "sender": self.user_id,
+                "content": {
+                    "m.relates_to": {
+                        RelationTypes.ANNOTATION: {
+                            "event_id": self.parent_id,
+                            "key": "a",
+                        }
+                    }
+                },
+            },
+            channel.json_body,
+        )
 
     def test_deny_membership(self):
         channel = self._send_relation(RelationTypes.ANNOTATION, EventTypes.Member)
