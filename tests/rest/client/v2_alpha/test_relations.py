@@ -51,10 +51,9 @@ class RelationsTestCase(unittest.HomeserverTestCase):
                 "sender": self.user_id,
                 "content": {
                     "m.relates_to": {
-                        RelationTypes.ANNOTATION: {
-                            "event_id": self.parent_id,
-                            "key": "a",
-                        }
+                        "event_id": self.parent_id,
+                        "key": "a",
+                        "rel_type": RelationTypes.ANNOTATION,
                     }
                 },
             },

@@ -69,7 +69,9 @@ class RelationSendServlet(RestServlet):
         aggregation_key = parse_string(request, "key")
 
         content["m.relates_to"] = {
-            relation_type: {"event_id": parent_id, "key": aggregation_key}
+            "event_id": parent_id,
+            "key": aggregation_key,
+            "rel_type": relation_type,
         }
 
         event_dict = {
@@ -133,14 +135,7 @@ class RelationAggregationPaginationServlet(RestServlet):
         self.store = hs.get_datastore()
 
     @defer.inlineCallbacks
-    def on_GET(
-        self,
-        request,
-        room_id,
-        parent_id,
-        relation_type=None,
-        event_type=None,
-    ):
+    def on_GET(self, request, room_id, parent_id, relation_type=None, event_type=None):
         requester = yield self.auth.get_user_by_req(request, allow_guest=True)
 
         yield self.auth.check_in_room_or_world_readable(
@@ -155,9 +150,7 @@ class RelationAggregationPaginationServlet(RestServlet):
         # FIXME: Do filtering?
 
         res = yield self.store.get_aggregation_groups_for_event(
-            event_id=parent_id,
-            event_type=event_type,
-            limit=limit,
+            event_id=parent_id, event_type=event_type, limit=limit
         )
 
         defer.returnValue((200, res.to_dict()))

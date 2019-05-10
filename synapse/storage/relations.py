@@ -36,7 +36,7 @@ class PaginationChunk(object):
 
 class RelationsStore(SQLBaseStore):
     def get_relations_for_event(
-        self, event_id, relation_type=None, event_type=None, limit=5, direction="b",
+        self, event_id, relation_type=None, event_type=None, limit=5, direction="b"
     ):
         """
         """
@@ -66,7 +66,8 @@ class RelationsStore(SQLBaseStore):
             LIMIT ?
         """ % (
             " AND ".join(where_clause),
-            order, order,
+            order,
+            order,
         )
 
         def _get_recent_references_for_event_txn(txn):
@@ -113,4 +114,37 @@ class RelationsStore(SQLBaseStore):
 
         return self.runInteraction(
             "get_aggregation_groups_for_event", _get_aggregation_groups_for_event_txn
+        )
+
+    def _handle_event_relations(self, txn, event):
+        relation = event.content.get("m.relates_to")
+        if not relation:
+            # No relations
+            return
+
+        rel_type = relation.get("rel_type")
+        if rel_type not in (
+            RelationTypes.ANNOTATION,
+            RelationTypes.REFERENCES,
+            RelationTypes.REPLACES,
+        ):
+            # Unknown relation type
+            return
+
+        parent_id = relation.get("event_id")
+        if not parent_id:
+            # Invalid relation
+            return
+
+        aggregation_key = relation.get("key")
+
+        self._simple_insert_txn(
+            txn,
+            table="event_relations",
+            values={
+                "event_id": event.event_id,
+                "relates_to_id": parent_id,
+                "relation_type": rel_type,
+                "aggregation_key": aggregation_key,
+            },
         )
