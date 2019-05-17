@@ -1216,6 +1216,76 @@ class FederationGroupsRoleServlet(BaseFederationServlet):
         defer.returnValue((200, resp))
 
 
+class FederationUsersRolesServlet(BaseFederationServlet):
+    """Get roles on a user
+    """
+    PATH = (
+        "/users/(?P<user_id>[^/]*)/roles/?"
+    )
+
+    @defer.inlineCallbacks
+    def on_GET(self, origin, content, query, user_id):
+        requester_user_id = parse_string_from_args(query, "requester_user_id")
+        if get_domain_from_id(requester_user_id) != origin:
+            raise SynapseError(403, "requester_user_id doesn't match origin")
+
+        resp = yield self.handler.get_user_roles(
+            user_id,
+        )
+
+        defer.returnValue((200, resp))
+
+
+class FederationUsersRoleServlet(BaseFederationServlet):
+    """Add/remove/get a role on a user
+    """
+    PATH = (
+        "/users/(?P<user_id>[^/]*)/groups/(?P<group_id>[^/]*)/roles/(?P<role_id>[^/]+)"
+    )
+
+    @defer.inlineCallbacks
+    def on_GET(self, origin, content, query, user_id, group_id, role_id):
+        requester_user_id = parse_string_from_args(query, "requester_user_id")
+        if get_domain_from_id(requester_user_id) != origin:
+            raise SynapseError(403, "requester_user_id doesn't match origin")
+
+        resp = yield self.handler.get_user_role(
+            user_id, group_id, requester_user_id, role_id
+        )
+
+        defer.returnValue((200, resp))
+
+    @defer.inlineCallbacks
+    def on_POST(self, origin, content, query, user_id, group_id, role_id):
+        requester_user_id = parse_string_from_args(query, "requester_user_id")
+        if get_domain_from_id(requester_user_id) != origin:
+            raise SynapseError(403, "requester_user_id doesn't match origin")
+
+        if role_id == "":
+            raise SynapseError(400, "role_id cannot be empty string")
+
+        resp = yield self.handler.update_user_role(
+            user_id, group_id, requester_user_id, role_id, content,
+        )
+
+        defer.returnValue((200, resp))
+
+    @defer.inlineCallbacks
+    def on_DELETE(self, origin, content, query, user_id, group_id, role_id):
+        requester_user_id = parse_string_from_args(query, "requester_user_id")
+        if get_domain_from_id(requester_user_id) != origin:
+            raise SynapseError(403, "requester_user_id doesn't match origin")
+
+        if role_id == "":
+            raise SynapseError(400, "role_id cannot be empty string")
+
+        resp = yield self.handler.delete_user_role(
+            user_id, group_id, requester_user_id, role_id,
+        )
+
+        defer.returnValue((200, resp))
+
+
 class FederationGroupsSummaryUsersServlet(BaseFederationServlet):
     """Add/remove a user from the group summary, with optional role.
 

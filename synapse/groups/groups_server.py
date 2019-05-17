@@ -361,6 +361,75 @@ class GroupsServerHandler(object):
         defer.returnValue({})
 
     @defer.inlineCallbacks
+    def get_user_roles(self, user_id, group_id, requester_user_id):
+        """Get all roles a user has in a group (as seen by user)
+        """
+        yield self.check_group_is_ours(group_id, requester_user_id, and_exists=True)
+
+        roles = yield self.store.get_user_group_roles(
+            user_id=user_id,
+            group_id=group_id,
+        )
+        defer.returnValue({"roles": roles})
+
+    @defer.inlineCallbacks
+    def get_user_role(self, user_id, group_id, requester_user_id, role_id):
+        """Get a specific role a user has in a group (as seen by user)
+        """
+        yield self.check_group_is_ours(group_id, requester_user_id, and_exists=True)
+
+        res = yield self.store.get_user_role(
+            user_id=user_id,
+            group_id=group_id,
+            role_id=role_id,
+        )
+        defer.returnValue(res)
+
+    @defer.inlineCallbacks
+    def update_user_role(self, user_id, group_id, requester_user_id, role_id, content):
+        """Add/update a role in a group
+        """
+        yield self.check_group_is_ours(
+            group_id,
+            requester_user_id,
+            and_exists=True,
+            and_is_admin=requester_user_id,
+        )
+
+        is_public = _parse_visibility_from_contents(content)
+
+        profile = content.get("profile")
+
+        yield self.store.upsert_user_role(
+            user_id=user_id,
+            group_id=group_id,
+            role_id=role_id,
+            is_public=is_public,
+            profile=profile,
+        )
+
+        defer.returnValue({})
+
+    @defer.inlineCallbacks
+    def delete_user_role(self, user_id, group_id, requester_user_id, role_id):
+        """Remove role from group
+        """
+        yield self.check_group_is_ours(
+            group_id,
+            requester_user_id,
+            and_exists=True,
+            and_is_admin=requester_user_id,
+        )
+
+        yield self.store.remove_user_role(
+            user_id=user_id,
+            group_id=group_id,
+            role_id=role_id,
+        )
+
+        defer.returnValue({})
+
+    @defer.inlineCallbacks
     def update_group_summary_user(self, group_id, requester_user_id, user_id, role_id,
                                   content):
         """Add/update a users entry in the group summary

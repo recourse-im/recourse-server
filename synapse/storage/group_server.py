@@ -457,6 +457,103 @@ class GroupServerStore(SQLBaseStore):
             "add_user_to_summary", self._add_user_to_summary_txn,
             group_id, user_id, role_id, order, is_public,
         )
+        
+    @defer.inlineCallbacks
+    def get_user_roles(self, user_id):
+        rows = yield self._simple_select_list(
+            table="user_roles",
+            keyvalues={
+                "user_id": user_id,
+            },
+            retcols=("group_id", "role_id", "is_public", "profile"),
+            desc="get_user_roles",
+        )
+
+        user_roles = {row["group_id"]: {} for row in rows}
+
+        for row in rows:
+            user_roles[row["group_id"]][row["role_id"]]: {
+                "is_public": row["is_public"],
+                "profile": json.loads(row["profile"]),
+            }
+
+        defer.returnValue(user_roles)
+
+    @defer.inlineCallbacks
+    def get_user_group_roles(self, user_id, group_id):
+        rows = yield self._simple_select_list(
+            table="user_roles",
+            keyvalues={
+                "user_id": user_id,
+                "group_id": group_id,
+            },
+            retcols=("role_id", "is_public", "profile"),
+            desc="get_user_group_roles",
+        )
+
+        defer.returnValue({
+            row["role_id"]: {
+                "is_public": row["is_public"],
+                "profile": json.loads(row["profile"]),
+            }
+            for row in rows
+        })
+
+    @defer.inlineCallbacks
+    def get_user_role(self, user_id, group_id, role_id):
+        role = yield self._simple_select_one(
+            table="user_roles",
+            keyvalues={
+                "user_id": user_id,
+                "group_id": group_id,
+                "role_id": role_id,
+            },
+            retcols=("is_public", "profile"),
+            desc="get_user_role",
+        )
+
+        role["profile"] = json.loads(role["profile"])
+
+        defer.returnValue(role)
+
+    def upsert_user_role(self, user_id, group_id, role_id, profile, is_public):
+        """Add/remove user role
+        """
+        insertion_values = {}
+        update_values = {"group_id": group_id, "role_id": role_id}
+
+        if profile is None:
+            insertion_values["profile"] = "{}"
+        else:
+            update_values["profile"] = json.dumps(profile)
+
+        if is_public is None:
+            insertion_values["is_public"] = True
+        else:
+            update_values["is_public"] = is_public
+
+        return self._simple_upsert(
+            table="user_roles",
+            keyvalues={
+                "user_id": user_id,
+                "group_id": group_id,
+                "role_id": role_id,
+            },
+            values=update_values,
+            insertion_values=insertion_values,
+            desc="upsert_user_role",
+        )
+
+    def remove_user_role(self, user_id, group_id, role_id):
+        return self._simple_delete(
+            table="user_roles",
+            keyvalues={
+                "user_id": user_id,
+                "group_id": group_id,
+                "role_id": role_id,
+            },
+            desc="remove_user_role",
+        )
 
     def _add_user_to_summary_txn(self, txn, group_id, user_id, role_id, order,
                                  is_public):
